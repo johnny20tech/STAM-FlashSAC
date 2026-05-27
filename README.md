@@ -23,7 +23,7 @@ STAM-FlashSAC/
 Historical results are stored by variant, n-step setting, and seed, for example:
 
 ```text
-results/experiment/memory_k8_action_nstep3/seed0/final_exp5_completed/training_log.csv
+results/experiment/memory_k8_action_nstep3/seed0/training_log.csv
 ```
 
 ## Environment
@@ -105,7 +105,9 @@ Large controller checkpoints, replay buffers, tensorboard event files, and proce
 To rebuild the historical layout from the original local experiment folders:
 
 ```bash
-uv run python scripts/migrate_historical_results.py
+uv run python scripts/migrate_historical_results.py \
+  --nstep1-archive-dir /path/to/nstep1/archive \
+  --paper-main-dir /path/to/paper/main
 ```
 
 ## License

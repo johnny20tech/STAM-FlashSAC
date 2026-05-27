@@ -45,7 +45,7 @@ jobs:
         run: |
           PYTHONDONTWRITEBYTECODE=1 python scripts/plot_results.py \
             --results-dir results \
-            --figure-source final_exp5_completed
+            --figure-dataset paper_main
 
       - name: Validate lightweight results only
         run: |
@@ -54,6 +54,7 @@ jobs:
             exit 1
           fi
           test -f results/summaries/summary.csv
+          test -f results/summaries/by_dataset.csv
           test -f results/figures/all_learning_curves.png
           test -f results/figures/50M_final_average_return_baseline_vs_our_method_K4_K8_K16.png
           test -f results/figures/50M_final_average_return_action_vs_obs_only_K8_K16.png

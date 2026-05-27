@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 
-LIGHTWEIGHT_RUN_FILES = ("config.json", "training_log.csv", "performance_chart.png")
+LIGHTWEIGHT_RUN_FILES = ("config.json", "training_log.csv")
 
 
 def variant_with_nstep(variant: str, n_step: int | None) -> str:
@@ -42,9 +42,11 @@ def result_destination(
     seed: int,
     result_mode: str,
     result_set: str,
+    *,
+    use_result_set_subdir: bool = True,
 ) -> Path:
     base = results_dir / "experiment" / variant / f"seed{seed}"
-    if result_mode == "append" and base.exists() and any(base.iterdir()):
+    if use_result_set_subdir and result_mode == "append" and base.exists() and any(base.iterdir()):
         return base / result_set
     return base
 
@@ -56,9 +58,18 @@ def export_run_result(
     seed: int,
     result_mode: str,
     result_set: str,
-    source: str | None = None,
+    dataset: str | None = None,
+    use_result_set_subdir: bool = True,
+    original_run_name: str | None = None,
 ) -> Path:
-    dest = result_destination(results_dir, variant, seed, result_mode, result_set)
+    dest = result_destination(
+        results_dir,
+        variant,
+        seed,
+        result_mode,
+        result_set,
+        use_result_set_subdir=use_result_set_subdir,
+    )
     if result_mode == "overwrite" and dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True, exist_ok=True)
@@ -71,9 +82,10 @@ def export_run_result(
     metadata = {
         "variant": variant,
         "seed": seed,
-        "source": source or result_set,
-        "run_dir": str(run_dir),
+        "dataset": dataset or result_set,
     }
+    if original_run_name:
+        metadata["original_run_name"] = original_run_name
     (dest / "metadata.json").write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
     return dest
 

@@ -41,12 +41,12 @@ COLORS = {
 }
 
 
-def infer_variant_seed(csv_path: Path, results_dir: Path) -> tuple[str, int | None, str]:
+def infer_variant_seed_dataset(csv_path: Path, results_dir: Path) -> tuple[str, int | None, str]:
     rel = csv_path.relative_to(results_dir)
     parts = rel.parts
     variant = "unknown"
     seed = None
-    source = "unknown"
+    dataset = "unknown"
     if len(parts) >= 4 and parts[0] == "experiment":
         variant = parts[1]
         if parts[2].startswith("seed"):
@@ -54,8 +54,6 @@ def infer_variant_seed(csv_path: Path, results_dir: Path) -> tuple[str, int | No
                 seed = int(parts[2].replace("seed", ""))
             except ValueError:
                 seed = None
-        if len(parts) >= 5:
-            source = parts[3]
     cfg_path = csv_path.parent / "config.json"
     if cfg_path.exists():
         with cfg_path.open() as f:
@@ -67,8 +65,8 @@ def infer_variant_seed(csv_path: Path, results_dir: Path) -> tuple[str, int | No
         with meta_path.open() as f:
             meta = json.load(f)
         variant = meta.get("variant", variant)
-        source = meta.get("source", source)
-    return variant, seed, source
+        dataset = meta.get("dataset", dataset)
+    return variant, seed, dataset
 
 
 def split_nstep_variant(variant: str) -> tuple[str, str | None]:
@@ -102,15 +100,15 @@ def variant_sort_key(variant: str) -> tuple[int, int, str]:
 def load_results(results_dir: Path) -> pd.DataFrame:
     rows = []
     for csv_path in sorted((results_dir / "experiment").glob("*/*/**/training_log.csv")):
-        variant, seed, source = infer_variant_seed(csv_path, results_dir)
+        variant, seed, dataset = infer_variant_seed_dataset(csv_path, results_dir)
         df = pd.read_csv(csv_path)
         if df.empty:
             continue
         df = df.rename(columns={"Timestep": "step", "AvgReturn": "avg_return", "StdDev": "std_dev", "Score": "score"})
         df["variant"] = variant
         df["seed"] = seed
-        df["source"] = source
-        df["run_dir"] = str(csv_path.parent)
+        df["dataset"] = dataset
+        df["run_path"] = str(csv_path.parent.relative_to(results_dir))
         rows.append(df)
     return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
 
@@ -126,12 +124,12 @@ def auc(x: pd.Series, y: pd.Series) -> float:
 
 def build_summary(df: pd.DataFrame) -> pd.DataFrame:
     rows = []
-    for (source, variant, seed), group in df.groupby(["source", "variant", "seed"], dropna=False):
+    for (dataset, variant, seed), group in df.groupby(["dataset", "variant", "seed"], dropna=False):
         group = group.sort_values("step")
         last = group.iloc[-1]
         rows.append(
             {
-                "source": source,
+                "dataset": dataset,
                 "variant": variant,
                 "seed": seed,
                 "final_step": int(last["step"]),
@@ -141,10 +139,28 @@ def build_summary(df: pd.DataFrame) -> pd.DataFrame:
                 "best_score": float(group["score"].max()),
                 "auc_avg_return": auc(group["step"], group["avg_return"]),
                 "auc_score": auc(group["step"], group["score"]),
-                "run_dir": last["run_dir"],
+                "run_path": last["run_path"],
             }
         )
-    return pd.DataFrame(rows).sort_values(["source", "variant", "seed"])
+    return pd.DataFrame(rows).sort_values(["dataset", "variant", "seed"])
+
+
+def build_by_variant(summary: pd.DataFrame) -> pd.DataFrame:
+    return (
+        summary.groupby("variant", dropna=False)["final_avg_return"]
+        .agg(["count", "mean", "std", "sem", "min", "max"])
+        .reset_index()
+        .sort_values("variant")
+    )
+
+
+def build_by_dataset(summary: pd.DataFrame) -> pd.DataFrame:
+    return (
+        summary.groupby("dataset", dropna=False)["final_avg_return"]
+        .agg(["count", "mean", "std", "sem", "min", "max"])
+        .reset_index()
+        .sort_values("dataset")
+    )
 
 
 def configure_style() -> None:
@@ -220,20 +236,20 @@ def plot_selected_final_bars(summary: pd.DataFrame, out_path: Path, variants: li
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Plot STAM-FlashSAC results.")
     parser.add_argument("--results-dir", type=str, default=str(REPO_DIR / "results"))
-    parser.add_argument("--figure-source", type=str, default="auto")
+    parser.add_argument("--figure-dataset", type=str, default="auto")
     parser.add_argument("--default-n-step", type=int, default=3)
     return parser.parse_args()
 
 
-def select_figure_source(summary: pd.DataFrame, requested: str) -> str:
-    sources = sorted(str(source) for source in summary["source"].dropna().unique())
+def select_figure_dataset(summary: pd.DataFrame, requested: str) -> str:
+    datasets = sorted(str(dataset) for dataset in summary["dataset"].dropna().unique())
     if requested != "auto":
-        if requested not in sources:
-            raise ValueError(f"Unknown figure source '{requested}'. Available sources: {', '.join(sources)}")
+        if requested not in datasets:
+            raise ValueError(f"Unknown figure dataset '{requested}'. Available datasets: {', '.join(datasets)}")
         return requested
-    if "final_exp5_completed" in sources:
-        return "final_exp5_completed"
-    return sources[-1]
+    if "paper_main" in datasets:
+        return "paper_main"
+    return datasets[-1]
 
 
 def main() -> int:
@@ -253,15 +269,17 @@ def main() -> int:
         return 1
     summary = build_summary(df)
     summary.to_csv(summaries_dir / "summary.csv", index=False)
+    build_by_variant(summary).to_csv(summaries_dir / "by_variant.csv", index=False)
+    build_by_dataset(summary).to_csv(summaries_dir / "by_dataset.csv", index=False)
 
-    figure_source = select_figure_source(summary, args.figure_source)
-    source_df = df[df["source"] == figure_source]
-    source_summary = summary[summary["source"] == figure_source]
-    variants = sorted(set(source_df["variant"]), key=variant_sort_key)
+    figure_dataset = select_figure_dataset(summary, args.figure_dataset)
+    dataset_df = df[df["dataset"] == figure_dataset]
+    dataset_summary = summary[summary["dataset"] == figure_dataset]
+    variants = sorted(set(dataset_df["variant"]), key=variant_sort_key)
     desired_obs_order = ["memory_k8_obs", "memory_k8_action", "memory_k16_obs", "memory_k16_action"]
-    plot_learning_curves(source_df, figures_dir / "all_learning_curves.png", variants, args.default_n_step)
+    plot_learning_curves(dataset_df, figures_dir / "all_learning_curves.png", variants, args.default_n_step)
     plot_selected_final_bars(
-        source_summary,
+        dataset_summary,
         figures_dir / "50M_final_average_return_baseline_vs_our_method_K4_K8_K16.png",
         [
             variant for variant in variants
@@ -270,7 +288,7 @@ def main() -> int:
         args.default_n_step,
     )
     plot_selected_final_bars(
-        source_summary,
+        dataset_summary,
         figures_dir / "50M_final_average_return_action_vs_obs_only_K8_K16.png",
         sorted(
             [
@@ -286,7 +304,7 @@ def main() -> int:
     )
 
     print(f"Wrote {summaries_dir / 'summary.csv'}")
-    print(f"Wrote {figure_source} figures under {figures_dir}")
+    print(f"Wrote {figure_dataset} figures under {figures_dir}")
     return 0
 
 
