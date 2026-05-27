@@ -8,13 +8,19 @@ STAM-FlashSAC adds a short-term observation/action memory module to a FlashSAC-s
 
 ```text
 STAM-FlashSAC/
-├── stam_flashsac/              # package code
-├── scripts/                    # CLI entrypoints
+├── stam_flashsac/               # package code
+│   ├── flashsac/                # FlashSAC-style models, agent, buffer, runtime helpers
+│   ├── stam.py                  # STAM memory gate
+│   ├── training.py              # training entrypoint
+│   ├── experiment_runner.py     # multi-run launcher
+│   ├── plotting.py              # result plotting
+│   └── results.py               # lightweight result export helpers
+├── scripts/                     # CLI entrypoints
 ├── results/
 │   ├── experiment/<env_name>/<variant>_nstepN/seedX/
 │   ├── figures/                 # current plotted experiment only
 │   └── summaries/
-├── checkpoints/                # local training checkpoints, gitignored
+├── checkpoints/                 # local training checkpoints, gitignored
 ├── pyproject.toml
 ├── uv.lock
 └── README.md
@@ -65,6 +71,7 @@ Useful options:
 --gpus 0,1
 --processes-per-gpu 1
 --n-step 3
+--stam-context-len 16
 --result-mode append | overwrite
 --result-set my_run
 ```

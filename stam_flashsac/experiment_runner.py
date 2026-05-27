@@ -110,10 +110,10 @@ def build_command(args: argparse.Namespace, variant: Variant, seed: int, output_
         "--output-root",
         str(output_root),
     ]
-    cmd.append("--use-rise" if variant.use_stam else "--no-use-rise")
+    cmd.append("--use-stam" if variant.use_stam else "--no-use-stam")
     if variant.use_stam:
-        cmd.extend(["--rise-context-len", str(variant.context_len)])
-        cmd.append("--rise-include-prev-action" if variant.include_prev_action else "--no-rise-include-prev-action")
+        cmd.extend(["--stam-context-len", str(variant.context_len)])
+        cmd.append("--stam-include-prev-action" if variant.include_prev_action else "--no-stam-include-prev-action")
     cmd.append("--compile" if args.use_compile else "--no-compile")
     cmd.append("--save-buffer" if args.save_buffer else "--no-save-buffer")
     return cmd
