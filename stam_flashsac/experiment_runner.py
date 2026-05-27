@@ -161,6 +161,7 @@ def export_finished_run(args: argparse.Namespace, logger: logging.Logger, output
     dest = export_run_result(
         run_dir=run_dir,
         results_dir=Path(args.results_dir).resolve(),
+        env_name=args.env_id,
         variant=variant_with_nstep(variant.name, args.n_step),
         seed=seed,
         result_mode=args.result_mode,

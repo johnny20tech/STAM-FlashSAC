@@ -55,6 +55,7 @@ jobs:
           fi
           test -f results/summaries/summary.csv
           test -f results/summaries/by_dataset.csv
+          test -f results/summaries/by_env.csv
           test -f results/figures/all_learning_curves.png
           test -f results/figures/50M_final_average_return_baseline_vs_our_method_K4_K8_K16.png
           test -f results/figures/50M_final_average_return_action_vs_obs_only_K8_K16.png

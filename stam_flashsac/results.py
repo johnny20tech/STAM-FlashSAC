@@ -7,6 +7,10 @@ from pathlib import Path
 LIGHTWEIGHT_RUN_FILES = ("config.json", "training_log.csv")
 
 
+def sanitize_name(value: str) -> str:
+    return "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in value)
+
+
 def variant_with_nstep(variant: str, n_step: int | None) -> str:
     if n_step is None:
         return variant
@@ -38,6 +42,7 @@ def is_complete_run(run_dir: Path, max_steps: int) -> bool:
 
 def result_destination(
     results_dir: Path,
+    env_name: str,
     variant: str,
     seed: int,
     result_mode: str,
@@ -45,7 +50,7 @@ def result_destination(
     *,
     use_result_set_subdir: bool = True,
 ) -> Path:
-    base = results_dir / "experiment" / variant / f"seed{seed}"
+    base = results_dir / "experiment" / sanitize_name(env_name) / variant / f"seed{seed}"
     if use_result_set_subdir and result_mode == "append" and base.exists() and any(base.iterdir()):
         return base / result_set
     return base
@@ -54,6 +59,7 @@ def result_destination(
 def export_run_result(
     run_dir: Path,
     results_dir: Path,
+    env_name: str,
     variant: str,
     seed: int,
     result_mode: str,
@@ -64,6 +70,7 @@ def export_run_result(
 ) -> Path:
     dest = result_destination(
         results_dir,
+        env_name,
         variant,
         seed,
         result_mode,
@@ -80,6 +87,7 @@ def export_run_result(
             shutil.copy2(src, dest / name)
 
     metadata = {
+        "env_name": env_name,
         "variant": variant,
         "seed": seed,
         "dataset": dataset or result_set,
@@ -90,12 +98,12 @@ def export_run_result(
     return dest
 
 
-def infer_variant_and_seed(run_dir: Path) -> tuple[str | None, int | None]:
+def infer_variant_seed_and_env(run_dir: Path) -> tuple[str | None, int | None, str | None]:
     config_path = run_dir / "config.json"
     if config_path.exists():
         with config_path.open() as f:
             cfg = json.load(f)
-        return cfg.get("variant_name"), cfg.get("seed")
+        return cfg.get("variant_name"), cfg.get("seed"), cfg.get("env_id")
 
     name = run_dir.name
     seed = None
@@ -117,7 +125,7 @@ def infer_variant_and_seed(run_dir: Path) -> tuple[str | None, int | None]:
             if prefix.endswith(candidate):
                 variant = candidate
                 break
-    return variant, seed
+    return variant, seed, None
 
 
 def copy_tree_files(src_dir: Path, dest_dir: Path, patterns: tuple[str, ...]) -> int:

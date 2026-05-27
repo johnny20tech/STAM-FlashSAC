@@ -1,6 +1,0 @@
-{
-  "dataset": "paper_main",
-  "original_run_name": "Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0_baseline_seed1",
-  "seed": 1,
-  "variant": "baseline_nstep3"
-}

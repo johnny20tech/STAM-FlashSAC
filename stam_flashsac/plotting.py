@@ -41,32 +41,36 @@ COLORS = {
 }
 
 
-def infer_variant_seed_dataset(csv_path: Path, results_dir: Path) -> tuple[str, int | None, str]:
+def infer_env_variant_seed_dataset(csv_path: Path, results_dir: Path) -> tuple[str, str, int | None, str]:
     rel = csv_path.relative_to(results_dir)
     parts = rel.parts
+    env_name = "unknown"
     variant = "unknown"
     seed = None
     dataset = "unknown"
-    if len(parts) >= 4 and parts[0] == "experiment":
-        variant = parts[1]
-        if parts[2].startswith("seed"):
+    if len(parts) >= 5 and parts[0] == "experiment":
+        env_name = parts[1]
+        variant = parts[2]
+        if parts[3].startswith("seed"):
             try:
-                seed = int(parts[2].replace("seed", ""))
+                seed = int(parts[3].replace("seed", ""))
             except ValueError:
                 seed = None
     cfg_path = csv_path.parent / "config.json"
     if cfg_path.exists():
         with cfg_path.open() as f:
             cfg = json.load(f)
+        env_name = cfg.get("env_id", env_name)
         variant = cfg.get("variant_name", variant)
         seed = cfg.get("seed", seed)
     meta_path = csv_path.parent / "metadata.json"
     if meta_path.exists():
         with meta_path.open() as f:
             meta = json.load(f)
+        env_name = meta.get("env_name", env_name)
         variant = meta.get("variant", variant)
         dataset = meta.get("dataset", dataset)
-    return variant, seed, dataset
+    return env_name, variant, seed, dataset
 
 
 def split_nstep_variant(variant: str) -> tuple[str, str | None]:
@@ -99,12 +103,13 @@ def variant_sort_key(variant: str) -> tuple[int, int, str]:
 
 def load_results(results_dir: Path) -> pd.DataFrame:
     rows = []
-    for csv_path in sorted((results_dir / "experiment").glob("*/*/**/training_log.csv")):
-        variant, seed, dataset = infer_variant_seed_dataset(csv_path, results_dir)
+    for csv_path in sorted((results_dir / "experiment").glob("*/*/*/**/training_log.csv")):
+        env_name, variant, seed, dataset = infer_env_variant_seed_dataset(csv_path, results_dir)
         df = pd.read_csv(csv_path)
         if df.empty:
             continue
         df = df.rename(columns={"Timestep": "step", "AvgReturn": "avg_return", "StdDev": "std_dev", "Score": "score"})
+        df["env_name"] = env_name
         df["variant"] = variant
         df["seed"] = seed
         df["dataset"] = dataset
@@ -124,12 +129,13 @@ def auc(x: pd.Series, y: pd.Series) -> float:
 
 def build_summary(df: pd.DataFrame) -> pd.DataFrame:
     rows = []
-    for (dataset, variant, seed), group in df.groupby(["dataset", "variant", "seed"], dropna=False):
+    for (dataset, env_name, variant, seed), group in df.groupby(["dataset", "env_name", "variant", "seed"], dropna=False):
         group = group.sort_values("step")
         last = group.iloc[-1]
         rows.append(
             {
                 "dataset": dataset,
+                "env_name": env_name,
                 "variant": variant,
                 "seed": seed,
                 "final_step": int(last["step"]),
@@ -142,7 +148,7 @@ def build_summary(df: pd.DataFrame) -> pd.DataFrame:
                 "run_path": last["run_path"],
             }
         )
-    return pd.DataFrame(rows).sort_values(["dataset", "variant", "seed"])
+    return pd.DataFrame(rows).sort_values(["dataset", "env_name", "variant", "seed"])
 
 
 def build_by_variant(summary: pd.DataFrame) -> pd.DataFrame:
@@ -160,6 +166,15 @@ def build_by_dataset(summary: pd.DataFrame) -> pd.DataFrame:
         .agg(["count", "mean", "std", "sem", "min", "max"])
         .reset_index()
         .sort_values("dataset")
+    )
+
+
+def build_by_env(summary: pd.DataFrame) -> pd.DataFrame:
+    return (
+        summary.groupby("env_name", dropna=False)["final_avg_return"]
+        .agg(["count", "mean", "std", "sem", "min", "max"])
+        .reset_index()
+        .sort_values("env_name")
     )
 
 
@@ -237,6 +252,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Plot STAM-FlashSAC results.")
     parser.add_argument("--results-dir", type=str, default=str(REPO_DIR / "results"))
     parser.add_argument("--figure-dataset", type=str, default="auto")
+    parser.add_argument("--figure-env", type=str, default="auto")
     parser.add_argument("--default-n-step", type=int, default=3)
     return parser.parse_args()
 
@@ -250,6 +266,15 @@ def select_figure_dataset(summary: pd.DataFrame, requested: str) -> str:
     if "paper_main" in datasets:
         return "paper_main"
     return datasets[-1]
+
+
+def select_figure_env(summary: pd.DataFrame, dataset: str, requested: str) -> str:
+    envs = sorted(str(env_name) for env_name in summary.loc[summary["dataset"] == dataset, "env_name"].dropna().unique())
+    if requested != "auto":
+        if requested not in envs:
+            raise ValueError(f"Unknown figure environment '{requested}'. Available environments: {', '.join(envs)}")
+        return requested
+    return envs[-1]
 
 
 def main() -> int:
@@ -271,10 +296,12 @@ def main() -> int:
     summary.to_csv(summaries_dir / "summary.csv", index=False)
     build_by_variant(summary).to_csv(summaries_dir / "by_variant.csv", index=False)
     build_by_dataset(summary).to_csv(summaries_dir / "by_dataset.csv", index=False)
+    build_by_env(summary).to_csv(summaries_dir / "by_env.csv", index=False)
 
     figure_dataset = select_figure_dataset(summary, args.figure_dataset)
-    dataset_df = df[df["dataset"] == figure_dataset]
-    dataset_summary = summary[summary["dataset"] == figure_dataset]
+    figure_env = select_figure_env(summary, figure_dataset, args.figure_env)
+    dataset_df = df[(df["dataset"] == figure_dataset) & (df["env_name"] == figure_env)]
+    dataset_summary = summary[(summary["dataset"] == figure_dataset) & (summary["env_name"] == figure_env)]
     variants = sorted(set(dataset_df["variant"]), key=variant_sort_key)
     desired_obs_order = ["memory_k8_obs", "memory_k8_action", "memory_k16_obs", "memory_k16_action"]
     plot_learning_curves(dataset_df, figures_dir / "all_learning_curves.png", variants, args.default_n_step)
@@ -304,7 +331,7 @@ def main() -> int:
     )
 
     print(f"Wrote {summaries_dir / 'summary.csv'}")
-    print(f"Wrote {figure_dataset} figures under {figures_dir}")
+    print(f"Wrote {figure_dataset} figures for {figure_env} under {figures_dir}")
     return 0
 
 

@@ -1,6 +1,0 @@
-{
-  "dataset": "nstep1_archive",
-  "original_run_name": "Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0_memory_k16_action_seed3",
-  "seed": 3,
-  "variant": "memory_k16_action_nstep1"
-}

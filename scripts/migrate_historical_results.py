@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from stam_flashsac.results import export_run_result, infer_variant_and_seed, is_complete_run, variant_with_nstep
+from stam_flashsac.results import export_run_result, infer_variant_seed_and_env, is_complete_run, variant_with_nstep
 
 
 DEFAULT_MAX_STEPS = 50_000_896
@@ -26,13 +26,14 @@ def migrate_checkpoint_runs(
     for run_dir in sorted(path for path in checkpoint_root.iterdir() if path.is_dir()):
         if not is_complete_run(run_dir, max_steps):
             continue
-        variant, seed = infer_variant_and_seed(run_dir)
-        if variant is None or seed is None:
+        variant, seed, env_name = infer_variant_seed_and_env(run_dir)
+        if variant is None or seed is None or env_name is None:
             continue
         result_variant = variant_with_nstep(variant, n_step)
         dest = export_run_result(
             run_dir=run_dir,
             results_dir=results_dir,
+            env_name=env_name,
             variant=result_variant,
             seed=seed,
             result_mode="overwrite",
@@ -44,6 +45,7 @@ def migrate_checkpoint_runs(
         rows.append(
             {
                 "dataset": dataset,
+                "env_name": env_name,
                 "variant": result_variant,
                 "seed": seed,
                 "relative_path": str(dest.relative_to(results_dir)),
@@ -56,7 +58,7 @@ def write_manifest(rows: list[dict], results_dir: Path) -> None:
     manifest = results_dir / "summaries" / "manifest.csv"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     with manifest.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["dataset", "variant", "seed", "relative_path"])
+        writer = csv.DictWriter(f, fieldnames=["dataset", "env_name", "variant", "seed", "relative_path"])
         writer.writeheader()
         writer.writerows(rows)
 
