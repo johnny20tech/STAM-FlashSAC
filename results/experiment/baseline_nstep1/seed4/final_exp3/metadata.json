@@ -1,0 +1,6 @@
+{
+  "run_dir": "/tmp2/johnny/DRL/HW4/final-exp3/checkpoints/Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0_baseline_seed4",
+  "seed": 4,
+  "source": "final_exp3",
+  "variant": "baseline_nstep1"
+}

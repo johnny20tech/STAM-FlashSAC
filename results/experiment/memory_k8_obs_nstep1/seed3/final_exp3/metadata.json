@@ -1,0 +1,6 @@
+{
+  "run_dir": "/tmp2/johnny/DRL/HW4/final-exp3/checkpoints/Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0_memory_k8_obs_seed3",
+  "seed": 3,
+  "source": "final_exp3",
+  "variant": "memory_k8_obs_nstep1"
+}

@@ -1,0 +1,16 @@
+{
+  "env_id": "Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0",
+  "max_steps": 50000896,
+  "num_train_envs": 1024,
+  "num_eval_episodes": 1024,
+  "n_step": 3,
+  "updates_per_interaction_step": 2,
+  "variants": [
+    "baseline",
+    "memory_k4_action",
+    "memory_k8_action",
+    "memory_k16_action",
+    "memory_k8_obs",
+    "memory_k16_obs"
+  ]
+}
