@@ -35,9 +35,9 @@ VARIANTS = {
 }
 
 SUITES = {
-    "main": ["baseline", "memory_k8_action"],
+    "main": ["baseline", "memory_k16_action"],
     "ablations": ["memory_k4_action", "memory_k8_action", "memory_k16_action", "memory_k8_obs", "memory_k16_obs"],
-    "all": ["baseline", "memory_k8_action", "memory_k4_action", "memory_k16_action", "memory_k8_obs", "memory_k16_obs"],
+    "all": ["baseline", "memory_k16_action", "memory_k4_action", "memory_k8_action", "memory_k8_obs", "memory_k16_obs"],
 }
 
 

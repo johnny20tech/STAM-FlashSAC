@@ -23,7 +23,7 @@ STAM-FlashSAC/
 Historical results are stored by variant, n-step setting, and seed, for example:
 
 ```text
-results/experiment/memory_k8_action_nstep3/seed0/training_log.csv
+results/experiment/memory_k16_action_nstep3/seed0/training_log.csv
 ```
 
 ## Environment
@@ -60,7 +60,7 @@ Useful options:
 
 ```text
 --suite main | ablations | all
---variants baseline,memory_k8_action
+--variants baseline,memory_k16_action
 --seeds 0,1,2,3,4
 --gpus 0,1
 --processes-per-gpu 1
@@ -68,6 +68,12 @@ Useful options:
 --result-mode append | overwrite
 --result-set my_run
 ```
+
+Suites:
+
+- `main`: runs the primary comparison, `baseline` and `memory_k16_action`.
+- `ablations`: runs memory/action ablations, `memory_k4_action`, `memory_k8_action`, `memory_k16_action`, `memory_k8_obs`, and `memory_k16_obs`.
+- `all`: runs every configured variant from `main` and `ablations`.
 
 `append` is the default. It keeps existing `results/experiment/<variant>_nstepN/seedX` data and writes repeated runs under a result-set subfolder. `overwrite` replaces the existing data for a previously run seed/result-set.
 
