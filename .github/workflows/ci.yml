@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lightweight-checks:
+    name: Lightweight repository checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install lightweight test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy pandas matplotlib
+
+      - name: Syntax check
+        run: |
+          python -m py_compile $(find stam_flashsac scripts -name "*.py" -print)
+
+      - name: Experiment runner dry-run
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 python scripts/run_experiments.py \
+            --suite main \
+            --seeds 0 \
+            --gpus 0,1 \
+            --processes-per-gpu 1 \
+            --result-mode overwrite \
+            --result-set ci_smoke \
+            --output-root /tmp/stam_flashsac_ci_checkpoints \
+            --results-dir /tmp/stam_flashsac_ci_results \
+            --python python \
+            --dry-run
+
+      - name: Rebuild plots from bundled CSV results
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 python scripts/plot_results.py \
+            --results-dir results \
+            --figure-source final_exp5_completed
+
+      - name: Validate lightweight results only
+        run: |
+          if find results -type f \( -name "*.pt" -o -name "*.pth" -o -name "*.log" -o -name "events.out.tfevents*" -o -name "*.zip" \) | grep .; then
+            echo "Unexpected large/runtime artifact found under results/"
+            exit 1
+          fi
+          test -f results/summaries/summary.csv
+          test -f results/figures/all_learning_curves.png
+          test -f results/figures/50M_final_average_return_baseline_vs_our_method_K4_K8_K16.png
+          test -f results/figures/50M_final_average_return_action_vs_obs_only_K8_K16.png

@@ -38,8 +38,8 @@ uv sync --extra isaaclab
 Quick import check:
 
 ```bash
-.venv/bin/python -c "import torch; print(torch.__version__)"
-.venv/bin/python -c "import isaaclab; print('isaaclab ok')"
+uv run python -c "import torch; print(torch.__version__)"
+uv run python -c "import isaaclab; print('isaaclab ok')"
 ```
 
 ## Run Experiments
@@ -47,13 +47,13 @@ Quick import check:
 Dry-run the full suite:
 
 ```bash
-.venv/bin/python scripts/run_experiments.py --suite all --dry-run
+uv run python scripts/run_experiments.py --suite all --dry-run
 ```
 
 Run the main comparison:
 
 ```bash
-.venv/bin/python scripts/run_experiments.py --suite main --gpus 0,1 --processes-per-gpu 1
+uv run python scripts/run_experiments.py --suite main --gpus 0,1 --processes-per-gpu 1
 ```
 
 Useful options:
@@ -74,7 +74,7 @@ Useful options:
 ## Plot Results
 
 ```bash
-.venv/bin/python scripts/plot_results.py
+uv run python scripts/plot_results.py
 ```
 
 Plots are written to:
@@ -105,7 +105,7 @@ Large controller checkpoints, replay buffers, tensorboard event files, and proce
 To rebuild the historical layout from the original local experiment folders:
 
 ```bash
-.venv/bin/python scripts/migrate_historical_results.py
+uv run python scripts/migrate_historical_results.py
 ```
 
 ## License
