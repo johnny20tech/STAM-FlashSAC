@@ -39,6 +39,10 @@ def parse_args():
     parser.add_argument("--n-step", type=int, default=3)
     parser.add_argument("--pretrained-path", type=str, default=None)
     parser.add_argument("--output-root", type=str, default=None)
+    parser.add_argument("--wandb", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--wandb-project", type=str, default="STAM-FlashSAC")
+    parser.add_argument("--wandb-entity", type=str, default=None)
+    parser.add_argument("--wandb-mode", choices=["online", "offline"], default="online")
     parser.add_argument("--save-buffer", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--compile", dest="use_compile", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--use-stam", action=argparse.BooleanOptionalAction, default=True)
@@ -92,6 +96,10 @@ def run_experiment():
         'stam_context_len': args.stam_context_len,
         'stam_hidden_dim': args.stam_hidden_dim,
         'stam_include_prev_action': args.stam_include_prev_action,
+        'wandb': args.wandb,
+        'wandb_project': args.wandb_project,
+        'wandb_entity': args.wandb_entity,
+        'wandb_mode': args.wandb_mode,
         'use_compile': args.use_compile
     }
     cfg['num_interaction_steps'] = math.ceil(cfg['max_steps'] / cfg['num_train_envs'])
@@ -141,7 +149,16 @@ def run_experiment():
     latest_ckpt = os.path.join(output_dir, "controller_latest.pt")
     best_buffer = os.path.join(output_dir, "buffer_best.pt")
     latest_buffer = os.path.join(output_dir, "buffer_latest.pt")
-    tb_logger = TensorboardScalarLogger(tb_log_dir, cfg)
+    tb_logger = TensorboardScalarLogger(
+        tb_log_dir,
+        cfg,
+        wandb_enabled=args.wandb,
+        wandb_project=args.wandb_project,
+        wandb_entity=args.wandb_entity,
+        wandb_mode=args.wandb_mode,
+        run_name=run_name,
+        output_dir=output_dir,
+    )
     print(f"[TensorBoard] Logging to: {tb_log_dir}")
     
     current_step, ep_idx, best_metric = controller.restore(latest_ckpt)

@@ -28,31 +28,77 @@ def render_metrics(csv_path: str, out_img: str):
     plt.close(fig)
 
 class TensorboardScalarLogger:
-    def __init__(self, log_dir: str, cfg: dict):
+    def __init__(
+        self,
+        log_dir: str,
+        cfg: dict,
+        *,
+        wandb_enabled: bool = False,
+        wandb_project: str = "STAM-FlashSAC",
+        wandb_entity: str | None = None,
+        wandb_mode: str = "online",
+        run_name: str | None = None,
+        output_dir: str | None = None,
+    ):
+        self.writer = None
+        self.wandb = None
         try:
             from torch.utils.tensorboard import SummaryWriter
         except ModuleNotFoundError:
-            self.writer = None
             print("[TensorBoard] tensorboard is not installed; scalar logging is disabled.")
             print("[TensorBoard] Install it in the active env to enable logs: pip install tensorboard")
-            return
+        else:
+            self.writer = SummaryWriter(log_dir=log_dir)
+            cfg_text = "\n".join(f"{key}: {value}" for key, value in sorted(cfg.items()))
+            self.writer.add_text("config", f"```text\n{cfg_text}\n```", global_step=0)
 
-        self.writer = SummaryWriter(log_dir=log_dir)
-        cfg_text = "\n".join(f"{key}: {value}" for key, value in sorted(cfg.items()))
-        self.writer.add_text("config", f"```text\n{cfg_text}\n```", global_step=0)
+        if wandb_enabled:
+            try:
+                import wandb
+
+                wandb.init(
+                    project=wandb_project,
+                    entity=wandb_entity,
+                    name=run_name,
+                    config=cfg,
+                    dir=output_dir,
+                    mode=wandb_mode,
+                )
+            except Exception as exc:
+                print(f"[W&B] Failed to initialize; wandb logging is disabled. Error: {exc}")
+            else:
+                self.wandb = wandb
+                print(f"[W&B] Logging run: {run_name or '<unnamed>'} (project={wandb_project}, mode={wandb_mode})")
 
     def log_scalars(self, step: int, scalars: dict[str, float | int]):
-        if self.writer is None:
-            return
+        clean_scalars = {}
         for key, value in scalars.items():
             if value is None:
                 continue
-            self.writer.add_scalar(key, float(value), global_step=step)
-        self.writer.flush()
+            clean_scalars[key] = float(value)
+
+        if self.writer is not None:
+            for key, value in clean_scalars.items():
+                self.writer.add_scalar(key, value, global_step=step)
+            self.writer.flush()
+
+        if self.wandb is not None and clean_scalars:
+            try:
+                self.wandb.log(clean_scalars, step=step)
+            except Exception as exc:
+                print(f"[W&B] Failed to log scalars; wandb logging is disabled. Error: {exc}")
+                self.wandb = None
 
     def close(self):
         if self.writer is not None:
             self.writer.close()
+        if self.wandb is not None:
+            try:
+                self.wandb.finish()
+            except Exception as exc:
+                print(f"[W&B] Failed to finish run cleanly. Error: {exc}")
+            finally:
+                self.wandb = None
 
 def execute_evaluation(env, controller, n_eps=50):
     num_envs = env.num_envs
@@ -77,4 +123,3 @@ def execute_evaluation(env, controller, n_eps=50):
     returns = returns[:n_eps]
     avg, dev = np.mean(returns), np.std(returns)
     return avg, dev, avg - dev
-

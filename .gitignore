@@ -11,3 +11,5 @@ checkpoints/
 *.zip
 *.log
 wandb/
+docker_cache/
+results/

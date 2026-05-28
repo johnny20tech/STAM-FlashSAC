@@ -74,6 +74,9 @@ Useful options:
 --stam-context-len 16
 --result-mode append | overwrite
 --result-set my_run
+--wandb
+--wandb-project STAM-FlashSAC
+--wandb-mode online | offline
 ```
 
 Suites:
@@ -84,6 +87,56 @@ Suites:
 
 `append` is the default. It keeps existing `results/experiment/<env_name>/<variant>_nstepN/seedX` data and writes repeated runs under a result-set subfolder. `overwrite` replaces the existing data for a previously run seed/result-set.
 Results are grouped by environment first, so different tasks can coexist under `results/experiment/<env_name>/...`.
+
+## Weights & Biases Logging
+
+TensorBoard logging is always written under each run's `tensorboard/` directory. To also stream scalar metrics and the run config to Weights & Biases, first log in:
+
+```bash
+wandb login
+```
+
+For a single training run:
+
+```bash
+uv run python scripts/train.py \
+  --wandb \
+  --wandb-project STAM-FlashSAC \
+  --output-root checkpoints/20260528_211324
+```
+
+For the experiment runner:
+
+```bash
+uv run python scripts/run_experiments.py \
+  --suite main \
+  --gpus 0,1 \
+  --processes-per-gpu 1 \
+  --wandb \
+  --wandb-project STAM-FlashSAC
+```
+
+On machines without stable network access, log locally and sync later:
+
+```bash
+uv run python scripts/run_experiments.py \
+  --suite main \
+  --wandb \
+  --wandb-mode offline
+
+wandb sync /tmp2/b12902071/STAM-FlashSAC/checkpoints/<result_set>/wandb
+```
+
+Useful W&B options:
+
+```text
+--wandb | --no-wandb
+--wandb-project STAM-FlashSAC
+--wandb-entity <team-or-user>
+--wandb-mode online | offline
+```
+
+W&B records scalar metrics and config values only. Controller checkpoints, replay buffers, and other large artifacts remain local unless they are uploaded separately.
 
 ## Plot Results
 

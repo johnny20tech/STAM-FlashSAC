@@ -116,6 +116,11 @@ def build_command(args: argparse.Namespace, variant: Variant, seed: int, output_
         cmd.append("--stam-include-prev-action" if variant.include_prev_action else "--no-stam-include-prev-action")
     cmd.append("--compile" if args.use_compile else "--no-compile")
     cmd.append("--save-buffer" if args.save_buffer else "--no-save-buffer")
+    cmd.append("--wandb" if args.wandb else "--no-wandb")
+    cmd.extend(["--wandb-project", args.wandb_project])
+    if args.wandb_entity:
+        cmd.extend(["--wandb-entity", args.wandb_entity])
+    cmd.extend(["--wandb-mode", args.wandb_mode])
     return cmd
 
 
@@ -262,6 +267,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n-step", type=int, default=3)
     parser.add_argument("--compile", dest="use_compile", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--save-buffer", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--wandb", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--wandb-project", type=str, default="STAM-FlashSAC")
+    parser.add_argument("--wandb-entity", type=str, default=None)
+    parser.add_argument("--wandb-mode", choices=["online", "offline"], default="online")
     parser.add_argument("--skip-completed", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--skip-plot", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
