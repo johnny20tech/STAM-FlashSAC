@@ -63,6 +63,16 @@ def infer_variant_name(use_stam: bool, context_len: int, include_prev_action: bo
     return f"memory_K{context_len}_{suffix}"
 
 
+def reset_training_rollout_state(train_env, controller, cfg):
+    obs, _ = train_env.reset()
+    prev_action = np.zeros((cfg['num_train_envs'], cfg['a_dim']), dtype=np.float32)
+    stam_context = controller.make_initial_context(obs, prev_action)
+    ep_reward = np.zeros(cfg['num_train_envs'], dtype=np.float32)
+    controller.repeats_left = 0
+    controller.active_noise = None
+    return obs, prev_action, stam_context, ep_reward
+
+
 def run_experiment():
     args = parse_args()
     seed = np.random.randint(100000) if args.seed is None else args.seed
@@ -183,12 +193,11 @@ def run_experiment():
                 csv.writer(f).writerow(["Timestep", "AvgReturn", "StdDev", "Score"])
             print("[INFO] Restarting training because saved replay data is not usable with STAM.")
         
-    obs, _ = train_env.reset()
-    prev_action = np.zeros((cfg['num_train_envs'], cfg['a_dim']), dtype=np.float32)
-    stam_context = controller.make_initial_context(obs, prev_action)
-    ep_reward = np.zeros(cfg['num_train_envs'], dtype=np.float32)
+    obs, prev_action, stam_context, ep_reward = reset_training_rollout_state(train_env, controller, cfg)
     loss_c, loss_a, loss_t = 0.0, 0.0, 0.0
     grad_updates = 0
+    log_return_sum = 0.0
+    log_finished_episodes = 0
     max_interaction_steps = math.ceil(cfg['max_steps'] / cfg['num_train_envs'])
     start_interaction_step = current_step // cfg['num_train_envs']
     next_eval_step = max(((current_step // cfg['eval_freq']) + 1) * cfg['eval_freq'], cfg['eval_freq'])
@@ -247,6 +256,8 @@ def run_experiment():
         if np.any(terminal):
             controller.repeats_left = 0 
             finished_returns = ep_reward[terminal]
+            log_return_sum += float(np.sum(finished_returns))
+            log_finished_episodes += int(np.sum(terminal))
             ep_idx += int(np.sum(terminal))
             ep_reward[terminal] = 0.0
             prev_action[terminal] = 0.0
@@ -255,29 +266,16 @@ def run_experiment():
                 # Reset their history so a new episode does not inherit stale obs/action context.
                 stam_context[terminal] = controller.make_initial_context(obs[terminal], prev_action[terminal])
 
-            if grad_updates > 0 and (interaction_step + 1) % 25 == 0:
-                act_iters = max(grad_updates // 2, 1)
-                avg_critic_loss = loss_c / grad_updates
-                avg_actor_loss = loss_a / act_iters
-                avg_temp_loss = loss_t / act_iters
-                print(f"Step: {env_step:09d} | Ep: {ep_idx:6d} | Ret: {np.mean(finished_returns):8.2f} | "
-                      f"LC: {avg_critic_loss:7.3f} | LA: {avg_actor_loss:7.3f} | LT: {avg_temp_loss:7.3f}")
-                tb_logger.log_scalars(env_step, {
-                    "episode/return": float(np.mean(finished_returns)),
-                    "episode/num_finished": int(np.sum(terminal)),
-                    "train/critic_loss": avg_critic_loss,
-                    "train/actor_loss": avg_actor_loss,
-                    "train/temp_loss": avg_temp_loss,
-                    "train/temperature": float(controller.log_temp.exp().detach().cpu().item()),
-                    "train/buffer_size": memory.current_size,
-                    "train/updates": controller.optimization_steps,
-                    "train/actor_lr": controller.sch_actor.get_last_lr()[0],
-                    "train/critic_lr": controller.sch_critic.get_last_lr()[0],
-                })
-                loss_c, loss_a, loss_t, grad_updates = 0.0, 0.0, 0.0, 0
-
         if env_step >= next_log_step:
-            tb_logger.log_scalars(env_step, {
+            avg_return = log_return_sum / log_finished_episodes if log_finished_episodes > 0 else float("nan")
+            avg_critic_loss = loss_c / grad_updates if grad_updates > 0 else float("nan")
+            act_iters = max(grad_updates // 2, 1)
+            avg_actor_loss = loss_a / act_iters if grad_updates > 0 else float("nan")
+            avg_temp_loss = loss_t / act_iters if grad_updates > 0 else float("nan")
+            print(f"Step: {env_step:09d} | Ep: {ep_idx:6d} | Ret: {avg_return:8.2f} | "
+                  f"LC: {avg_critic_loss:7.3f} | LA: {avg_actor_loss:7.3f} | LT: {avg_temp_loss:7.3f}")
+
+            scalars = {
                 "train/buffer_size": memory.current_size,
                 "train/updates": controller.optimization_steps,
                 "train/temperature": float(controller.log_temp.exp().detach().cpu().item()),
@@ -285,7 +283,21 @@ def run_experiment():
                 "train/reward_scale_max_return": float(controller.return_tracker.max_ret_seen.detach().cpu().item()),
                 "train/actor_lr": controller.sch_actor.get_last_lr()[0],
                 "train/critic_lr": controller.sch_critic.get_last_lr()[0],
-            })
+            }
+            if log_finished_episodes > 0:
+                scalars.update({
+                    "episode/return": avg_return,
+                    "episode/num_finished": log_finished_episodes,
+                })
+            if grad_updates > 0:
+                scalars.update({
+                    "train/critic_loss": avg_critic_loss,
+                    "train/actor_loss": avg_actor_loss,
+                    "train/temp_loss": avg_temp_loss,
+                })
+            tb_logger.log_scalars(env_step, scalars)
+            loss_c, loss_a, loss_t, grad_updates = 0.0, 0.0, 0.0, 0
+            log_return_sum, log_finished_episodes = 0.0, 0
             next_log_step += cfg['logging_freq']
 
         # Benchmarking & Saving
@@ -314,6 +326,8 @@ def run_experiment():
             controller.checkpoint(latest_ckpt, env_step, ep_idx, best_metric)
             if cfg['save_buffer']:
                 memory.save(latest_buffer)
+            obs, prev_action, stam_context, ep_reward = reset_training_rollout_state(train_env, controller, cfg)
+            print("[INFO] Training environment reset after validation.")
             next_eval_step += cfg['eval_freq']
             print("-" * 60 + "\n")
 
