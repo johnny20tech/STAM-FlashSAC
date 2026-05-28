@@ -138,6 +138,53 @@ Useful W&B options:
 
 W&B records scalar metrics and config values only. Controller checkpoints, replay buffers, and other large artifacts remain local unless they are uploaded separately.
 
+## Record MP4 Rollouts
+
+Trained IsaacLab policies can be recorded as MP4 videos from an existing checkpoint run directory. The recorder uses IsaacLab's `render_mode="rgb_array"` path with headless offscreen video rendering, so run it on a machine with IsaacLab/Isaac Sim and an NVIDIA GPU available.
+
+For a quick short test:
+
+```bash
+CUDA_VISIBLE_DEVICES=3 uv run python scripts/record_mp4.py \
+  --run-dir checkpoints/20260528_224247/Isaac-Lift-Cube-Franka-v0_memory_k16_action_seed0 \
+  --checkpoint best \
+  --out checkpoints/20260528_224247/Isaac-Lift-Cube-Franka-v0_memory_k16_action_seed0/test.mp4 \
+  --device cuda:0 \
+  --steps 80 \
+  --frame-stride 2 \
+  --width 1280 \
+  --height 720 \
+  --fps 30
+```
+
+For a full rollout:
+
+```bash
+CUDA_VISIBLE_DEVICES=3 uv run python scripts/record_mp4.py \
+  --run-dir checkpoints/20260528_224247/Isaac-Lift-Cube-Franka-v0_memory_k16_action_seed0 \
+  --checkpoint best \
+  --out checkpoints/20260528_224247/Isaac-Lift-Cube-Franka-v0_memory_k16_action_seed0/rollout.mp4 \
+  --device cuda:0 \
+  --steps 250 \
+  --frame-stride 2 \
+  --width 1280 \
+  --height 720 \
+  --fps 30
+```
+
+Useful MP4 options:
+
+```text
+--checkpoint best | latest | /path/to/controller.pt
+--seed 42
+--camera-eye 1.7 1.2 0.9
+--camera-lookat 0.5 0.0 0.15
+--rendering-mode performance | balanced | quality
+--action-scale 2.75
+```
+
+`CUDA_VISIBLE_DEVICES=3 --device cuda:0` means the process sees physical GPU 3 as local `cuda:0`. The default output is `<run-dir>/rollout.mp4`. The recorder uses deterministic policy actions by default; `--action-scale` only overrides the environment action scaling used during recording. For `Isaac-Lift-Cube-Franka-v0`, the training wrapper scale is `3.0`, so lowering it too much can make the policy fail to lift the cube.
+
 ## Plot Results
 
 ```bash
