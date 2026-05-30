@@ -6,8 +6,18 @@ on:
 
 jobs:
   lightweight-checks:
-    name: Lightweight repository checks
+    name: Lightweight checks
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      MPLBACKEND: Agg
+      MPLCONFIGDIR: runtime/matplotlib
+      STAM_CI_RUNTIME: runtime/ci
 
     steps:
       - name: Checkout
@@ -18,49 +28,111 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install lightweight test dependencies
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Create lightweight environment
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install numpy pandas matplotlib
-          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          uv venv
+          uv pip install numpy pandas matplotlib
+          uv pip install torch --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
 
       - name: Syntax check
         run: |
-          python -m py_compile $(find stam_flashsac scripts -name "*.py" -print)
+          uv run --no-sync python -m compileall -q stam_flashsac scripts
 
       - name: CPU architecture smoke test
         run: |
-          PYTHONDONTWRITEBYTECODE=1 python scripts/smoke_cpu_experiment.py
+          uv run --no-sync python scripts/smoke_cpu_experiment.py
 
       - name: Experiment runner dry-run
         run: |
-          PYTHONDONTWRITEBYTECODE=1 python scripts/run_experiments.py \
+          uv run --no-sync python scripts/run_experiments.py \
             --suite main \
             --seeds 0 \
             --gpus 0,1 \
             --processes-per-gpu 1 \
             --result-mode overwrite \
             --result-set ci_smoke \
-            --output-root /tmp/stam_flashsac_ci_checkpoints \
-            --results-dir /tmp/stam_flashsac_ci_results \
+            --output-root "${STAM_CI_RUNTIME}/checkpoints" \
+            --results-dir "${STAM_CI_RUNTIME}/results" \
             --python python \
+            --skip-plot \
             --dry-run
 
-      - name: Rebuild plots from bundled CSV results
+      - name: Build synthetic lightweight results
         run: |
-          PYTHONDONTWRITEBYTECODE=1 python scripts/plot_results.py \
-            --results-dir results \
-            --figure-dataset paper_main
+          uv run --no-sync python - <<'PY'
+          import csv
+          import json
+          from pathlib import Path
 
-      - name: Validate lightweight results only
+          root = Path("runtime/ci/results")
+          env_name = "CI-Random-Env-v0"
+          variants = {
+              "baseline_nstep3": [20.0, 35.0, 50.0],
+              "memory_k4_action_nstep3": [25.0, 45.0, 70.0],
+              "memory_k8_action_nstep3": [30.0, 55.0, 90.0],
+              "memory_k16_action_nstep3": [35.0, 70.0, 120.0],
+              "memory_k8_obs_nstep3": [28.0, 48.0, 80.0],
+              "memory_k16_obs_nstep3": [32.0, 62.0, 105.0],
+          }
+          for variant, returns in variants.items():
+              run_dir = root / "experiment" / env_name / variant / "seed0"
+              run_dir.mkdir(parents=True, exist_ok=True)
+              base_variant = variant.removesuffix("_nstep3")
+              (run_dir / "config.json").write_text(
+                  json.dumps(
+                      {
+                          "env_id": env_name,
+                          "variant_name": variant,
+                          "seed": 0,
+                          "n_step": 3,
+                          "use_stam": base_variant != "baseline",
+                      },
+                      indent=2,
+                      sort_keys=True,
+                  )
+              )
+              (run_dir / "metadata.json").write_text(
+                  json.dumps(
+                      {
+                          "dataset": "paper_main",
+                          "env_name": env_name,
+                          "variant": variant,
+                          "seed": 0,
+                      },
+                      indent=2,
+                      sort_keys=True,
+                  )
+              )
+              with (run_dir / "training_log.csv").open("w", newline="") as f:
+                  writer = csv.writer(f)
+                  writer.writerow(["step", "avg_return", "std_dev", "score"])
+                  for idx, value in enumerate(returns, start=1):
+                      writer.writerow([idx * 100, value, 1.0, value])
+          PY
+
+      - name: Plot synthetic results
         run: |
-          if find results -type f \( -name "*.pt" -o -name "*.pth" -o -name "*.log" -o -name "events.out.tfevents*" -o -name "*.zip" \) | grep .; then
-            echo "Unexpected large/runtime artifact found under results/"
+          uv run --no-sync python scripts/plot_results.py \
+            --results-dir "${STAM_CI_RUNTIME}/results" \
+            --figure-dataset paper_main \
+            --figure-env CI-Random-Env-v0
+
+      - name: Validate generated artifacts
+        run: |
+          test -f "${STAM_CI_RUNTIME}/checkpoints/experiment_runner.log"
+          test -f "${STAM_CI_RUNTIME}/results/experiment/CI-Random-Env-v0/memory_k16_action_nstep3/seed0/training_log.csv"
+          test -f "${STAM_CI_RUNTIME}/results/summaries/summary.csv"
+          test -f "${STAM_CI_RUNTIME}/results/summaries/by_dataset.csv"
+          test -f "${STAM_CI_RUNTIME}/results/summaries/by_env.csv"
+          test -f "${STAM_CI_RUNTIME}/results/figures/all_learning_curves.png"
+          test -f "${STAM_CI_RUNTIME}/results/figures/50M_final_average_return_baseline_vs_our_method_K4_K8_K16.png"
+          test -f "${STAM_CI_RUNTIME}/results/figures/50M_final_average_return_action_vs_obs_only_K8_K16.png"
+          if find "${STAM_CI_RUNTIME}/results" -type f \( -name "*.pt" -o -name "*.pth" -o -name "*.log" -o -name "events.out.tfevents*" -o -name "*.zip" \) | grep .; then
+            echo "Unexpected large/runtime artifact found under ${STAM_CI_RUNTIME}/results"
             exit 1
           fi
-          test -f results/summaries/summary.csv
-          test -f results/summaries/by_dataset.csv
-          test -f results/summaries/by_env.csv
-          test -f results/figures/all_learning_curves.png
-          test -f results/figures/50M_final_average_return_baseline_vs_our_method_K4_K8_K16.png
-          test -f results/figures/50M_final_average_return_action_vs_obs_only_K8_K16.png
