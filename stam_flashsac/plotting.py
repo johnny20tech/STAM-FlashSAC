@@ -196,6 +196,7 @@ def plot_learning_curves(df: pd.DataFrame, out_path: Path, variants: list[str], 
     ax.grid(True, linestyle="--", alpha=0.45, color="#CBD5E1", zorder=0)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
+    final_points = []
     for variant in variants:
         cur = df[df["variant"] == variant]
         if cur.empty:
@@ -207,9 +208,24 @@ def plot_learning_curves(df: pd.DataFrame, out_path: Path, variants: list[str], 
         color = color_for_variant(variant)
         ax.plot(x, y, label=display_name(variant, default_n_step), color=color, linewidth=2.4)
         ax.fill_between(x, y - err, y + err, color=color, alpha=0.16, linewidth=0)
+        final_points.append((float(x.iloc[-1]), float(y.iloc[-1]), color))
+    for idx, (x_val, y_val, color) in enumerate(sorted(final_points, key=lambda item: item[1])):
+        ax.annotate(
+            format_return(y_val),
+            xy=(x_val, y_val),
+            xytext=(10, -6 if idx % 2 == 0 else 8),
+            textcoords="offset points",
+            ha="left",
+            va="center",
+            fontsize=8,
+            fontweight="bold",
+            color=color,
+            bbox={"boxstyle": "round,pad=0.18", "facecolor": "white", "edgecolor": color, "alpha": 0.88},
+        )
     ax.set_xlabel("Steps (Millions)", fontsize=11, labelpad=10)
     ax.set_ylabel("Average Evaluation Return", fontsize=11, labelpad=10)
     ax.legend(loc="upper left", frameon=True, facecolor="#F8FAFC", edgecolor="#E2E8F0", framealpha=0.95)
+    ax.margins(x=0.08)
     fig.tight_layout()
     fig.savefig(out_path, facecolor="white")
     plt.close(fig)

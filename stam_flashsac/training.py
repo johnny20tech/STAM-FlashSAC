@@ -53,6 +53,10 @@ def parse_args():
     parser.add_argument("--stam-include-prev-action", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--rise-include-prev-action", dest="stam_include_prev_action", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-rise-include-prev-action", dest="stam_include_prev_action", action="store_false", help=argparse.SUPPRESS)
+    parser.add_argument("--stam-fusion", choices=["gate", "concat"], default="gate")
+    parser.add_argument("--stam-encoder", choices=["lstm", "gru", "mlp"], default="lstm")
+    parser.add_argument("--stam-action-mode", choices=["correct", "shuffled"], default="correct")
+    parser.add_argument("--stam-apply-to", choices=["both", "actor", "critic"], default="both")
     return parser.parse_args()
 
 
@@ -106,6 +110,10 @@ def run_experiment():
         'stam_context_len': args.stam_context_len,
         'stam_hidden_dim': args.stam_hidden_dim,
         'stam_include_prev_action': args.stam_include_prev_action,
+        'stam_fusion': args.stam_fusion,
+        'stam_encoder': args.stam_encoder,
+        'stam_action_mode': args.stam_action_mode,
+        'stam_apply_to': args.stam_apply_to,
         'wandb': args.wandb,
         'wandb_project': args.wandb_project,
         'wandb_entity': args.wandb_entity,

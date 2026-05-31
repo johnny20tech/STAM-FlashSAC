@@ -65,6 +65,8 @@ class ContinuousControlAgent:
         if not self.use_stam:
             return None
         if self.cfg.get('stam_include_prev_action', True):
+            if self.cfg.get('stam_action_mode', 'correct') == 'shuffled':
+                prev_action = prev_action[np.random.permutation(prev_action.shape[0])]
             token = np.concatenate([state, prev_action], axis=-1)
         else:
             token = state

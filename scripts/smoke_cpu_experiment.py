@@ -11,11 +11,11 @@ from stam_flashsac.flashsac.agent import ContinuousControlAgent
 from stam_flashsac.flashsac.buffers import TrajectoryBuffer
 
 
-def make_cfg(use_stam: bool) -> dict:
+def make_cfg(use_stam: bool, **overrides) -> dict:
     state_dim = 6
     action_dim = 3
     context_len = 4
-    return {
+    cfg = {
         "s_dim": state_dim,
         "a_dim": action_dim,
         "gamma": 0.99,
@@ -33,8 +33,16 @@ def make_cfg(use_stam: bool) -> dict:
         "stam_hidden_dim": 16,
         "stam_include_prev_action": True,
         "stam_context_dim": state_dim + action_dim,
+        "stam_fusion": "gate",
+        "stam_encoder": "lstm",
+        "stam_action_mode": "correct",
+        "stam_apply_to": "both",
         "use_compile": False,
     }
+    cfg.update(overrides)
+    if not cfg.get("stam_include_prev_action", True):
+        cfg["stam_context_dim"] = state_dim
+    return cfg
 
 
 def assert_finite(name: str, value: torch.Tensor) -> None:
@@ -42,11 +50,11 @@ def assert_finite(name: str, value: torch.Tensor) -> None:
         raise AssertionError(f"{name} contains non-finite values")
 
 
-def smoke_agent(use_stam: bool) -> None:
+def smoke_agent(use_stam: bool, **overrides) -> None:
     torch.manual_seed(0)
     rng = np.random.default_rng(0)
     device = torch.device("cpu")
-    cfg = make_cfg(use_stam)
+    cfg = make_cfg(use_stam, **overrides)
     agent = ContinuousControlAgent(cfg, device)
 
     batch_size = 8
@@ -113,6 +121,14 @@ def smoke_agent(use_stam: bool) -> None:
 def main() -> int:
     smoke_agent(use_stam=False)
     smoke_agent(use_stam=True)
+    smoke_agent(use_stam=True, stam_fusion="concat")
+    smoke_agent(use_stam=True, stam_encoder="gru")
+    smoke_agent(use_stam=True, stam_encoder="mlp")
+    smoke_agent(use_stam=True, stam_action_mode="shuffled")
+    smoke_agent(use_stam=True, stam_apply_to="actor")
+    smoke_agent(use_stam=True, stam_apply_to="critic")
+    smoke_agent(use_stam=True, stam_hidden_dim=8)
+    smoke_agent(use_stam=True, stam_hidden_dim=32)
     print("CPU architecture smoke test passed")
     return 0
 

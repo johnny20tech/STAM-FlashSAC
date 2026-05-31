@@ -23,6 +23,11 @@ class Variant:
     use_stam: bool
     context_len: int = 0
     include_prev_action: bool = False
+    hidden_dim: int = 128
+    fusion: str = "gate"
+    encoder: str = "lstm"
+    action_mode: str = "correct"
+    apply_to: str = "both"
 
 
 VARIANTS = {
@@ -32,6 +37,31 @@ VARIANTS = {
     "memory_k16_action": Variant("memory_k16_action", use_stam=True, context_len=16, include_prev_action=True),
     "memory_k8_obs": Variant("memory_k8_obs", use_stam=True, context_len=8, include_prev_action=False),
     "memory_k16_obs": Variant("memory_k16_obs", use_stam=True, context_len=16, include_prev_action=False),
+    "memory_k32_action": Variant("memory_k32_action", use_stam=True, context_len=32, include_prev_action=True),
+    "memory_k16_action_concat": Variant(
+        "memory_k16_action_concat", use_stam=True, context_len=16, include_prev_action=True, fusion="concat"
+    ),
+    "memory_k16_action_gru": Variant(
+        "memory_k16_action_gru", use_stam=True, context_len=16, include_prev_action=True, encoder="gru"
+    ),
+    "memory_k16_action_mlp": Variant(
+        "memory_k16_action_mlp", use_stam=True, context_len=16, include_prev_action=True, encoder="mlp"
+    ),
+    "memory_k16_action_shuffled_action": Variant(
+        "memory_k16_action_shuffled_action", use_stam=True, context_len=16, include_prev_action=True, action_mode="shuffled"
+    ),
+    "memory_k16_action_actor_only": Variant(
+        "memory_k16_action_actor_only", use_stam=True, context_len=16, include_prev_action=True, apply_to="actor"
+    ),
+    "memory_k16_action_critic_only": Variant(
+        "memory_k16_action_critic_only", use_stam=True, context_len=16, include_prev_action=True, apply_to="critic"
+    ),
+    "memory_k16_action_hidden64": Variant(
+        "memory_k16_action_hidden64", use_stam=True, context_len=16, include_prev_action=True, hidden_dim=64
+    ),
+    "memory_k16_action_hidden256": Variant(
+        "memory_k16_action_hidden256", use_stam=True, context_len=16, include_prev_action=True, hidden_dim=256
+    ),
 }
 
 SUITES = {
@@ -113,6 +143,11 @@ def build_command(args: argparse.Namespace, variant: Variant, seed: int, output_
     cmd.append("--use-stam" if variant.use_stam else "--no-use-stam")
     if variant.use_stam:
         cmd.extend(["--stam-context-len", str(variant.context_len)])
+        cmd.extend(["--stam-hidden-dim", str(variant.hidden_dim)])
+        cmd.extend(["--stam-fusion", variant.fusion])
+        cmd.extend(["--stam-encoder", variant.encoder])
+        cmd.extend(["--stam-action-mode", variant.action_mode])
+        cmd.extend(["--stam-apply-to", variant.apply_to])
         cmd.append("--stam-include-prev-action" if variant.include_prev_action else "--no-stam-include-prev-action")
     cmd.append("--compile" if args.use_compile else "--no-compile")
     cmd.append("--save-buffer" if args.save_buffer else "--no-save-buffer")

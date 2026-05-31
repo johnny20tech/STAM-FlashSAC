@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from stam_flashsac.stam import STAMContextGate
+from stam_flashsac.stam import STAMContextModule
 from stam_flashsac.flashsac.utils import compute_tanh_jacobian_correction
 
 
@@ -182,9 +182,14 @@ class ActorNetwork(nn.Module):
         self.stem_linear = SphericalLinear(state_dim, hidden_dim)
         self.backbone = nn.ModuleList([ResidualControlBlock(hidden_dim) for _ in range(2)])
         self.stam_gate = None
-        if stam_cfg and stam_cfg.get('use_stam', False):
-            self.stam_gate = STAMContextGate(
-                stam_cfg['stam_context_dim'], stam_cfg['stam_hidden_dim'], hidden_dim
+        if stam_cfg and stam_cfg.get('use_stam', False) and stam_cfg.get('stam_apply_to', 'both') in {'both', 'actor'}:
+            self.stam_gate = STAMContextModule(
+                stam_cfg['stam_context_dim'],
+                stam_cfg['stam_hidden_dim'],
+                hidden_dim,
+                stam_cfg['stam_context_len'],
+                encoder=stam_cfg.get('stam_encoder', 'lstm'),
+                fusion=stam_cfg.get('stam_fusion', 'gate'),
             )
         self.head_norm = SphericalRMSNorm(hidden_dim)
         self.action_head = GaussianActionHead(hidden_dim, action_dim)
@@ -212,9 +217,15 @@ class DistributionalCritic(nn.Module):
         self.stem_linear = ParallelSphericalLinear(2, input_dim, hidden_dim)
         self.backbone = nn.ModuleList([ParallelResidualBlock(2, hidden_dim) for _ in range(2)])
         self.stam_gate = None
-        if stam_cfg and stam_cfg.get('use_stam', False):
-            self.stam_gate = STAMContextGate(
-                stam_cfg['stam_context_dim'], stam_cfg['stam_hidden_dim'], hidden_dim, n_models=2
+        if stam_cfg and stam_cfg.get('use_stam', False) and stam_cfg.get('stam_apply_to', 'both') in {'both', 'critic'}:
+            self.stam_gate = STAMContextModule(
+                stam_cfg['stam_context_dim'],
+                stam_cfg['stam_hidden_dim'],
+                hidden_dim,
+                stam_cfg['stam_context_len'],
+                n_models=2,
+                encoder=stam_cfg.get('stam_encoder', 'lstm'),
+                fusion=stam_cfg.get('stam_fusion', 'gate'),
             )
         self.head_norm = ParallelSphericalRMSNorm(2, hidden_dim)
         self.q_head = CategoricalValueHead(2, hidden_dim, n_atoms, v_range[0], v_range[1])
