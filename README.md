@@ -8,7 +8,7 @@ Zheng-Lin Wu, Jian-Bin Wu, Chih-En Kuo, I-Chen Lee, Yu-Lin Chu
 
 National Taiwan University
 
-**Oral presentation, NTU Fall 2026 ML-MiniConf**
+**[Oral presentation](#acceptance), NTU Fall 2026 ML-MiniConf**
 
 [![Paper](https://img.shields.io/badge/Paper-PDF-b31b1b)](docs/STAM-FlashSAC.pdf)
 [![Slides](https://img.shields.io/badge/Slides-Oral-2563eb)](docs/STAM-FlashSAC_slides.pdf)
@@ -276,6 +276,19 @@ uv run python scripts/migrate_historical_results.py \
   --nstep1-archive-dir /path/to/nstep1/archive \
   --paper-main-dir /path/to/paper/main
 ```
+
+## Acceptance
+
+<details>
+<summary>OpenReview decision: Accept (Oral), NTU Fall 2026 ML-MiniConf</summary>
+
+<p align="center">
+  <img src="docs/assets/openreview_decision.png" width="85%" alt="OpenReview page showing Decision: Accept (Oral)">
+</p>
+
+The OpenReview forum is visible only to conference participants. This screenshot shows the paper header and the program chairs' decision.
+
+</details>
 
 ## Citation
 
