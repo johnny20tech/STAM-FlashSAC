@@ -159,7 +159,7 @@ For a single training run:
 uv run python scripts/train.py \
   --wandb \
   --wandb-project STAM-FlashSAC \
-  --output-root checkpoints/20260528_211324
+  --output-root checkpoints/single_run
 ```
 
 For the experiment runner:
@@ -178,10 +178,11 @@ On machines without stable network access, log locally and sync later:
 ```bash
 uv run python scripts/run_experiments.py \
   --suite main \
+  --result-set main_run \
   --wandb \
   --wandb-mode offline
 
-wandb sync checkpoints/<result_set>/wandb
+wandb sync checkpoints/main_run/wandb
 ```
 
 Useful W&B options:
@@ -197,15 +198,15 @@ W&B records scalar metrics and config values only. Controller checkpoints, repla
 
 ## Record MP4 Rollouts
 
-Trained IsaacLab policies can be recorded as MP4 videos from an existing checkpoint run directory. The recorder uses IsaacLab's `render_mode="rgb_array"` path with headless offscreen video rendering, so run it on a machine with IsaacLab/Isaac Sim and an NVIDIA GPU available.
+Trained IsaacLab policies can be recorded as MP4 videos from an existing checkpoint run directory. The experiment runner writes each run to `checkpoints/<result_set>/<env_id>_<variant>_seed<N>/`, where `<result_set>` is the `--result-set` value (a timestamp if omitted); the examples below assume `--result-set main_run`. The recorder uses IsaacLab's `render_mode="rgb_array"` path with headless offscreen video rendering, so run it on a machine with IsaacLab/Isaac Sim and an NVIDIA GPU available.
 
 For a quick short test:
 
 ```bash
 CUDA_VISIBLE_DEVICES=3 uv run python scripts/record_mp4.py \
-  --run-dir checkpoints/20260528_224247/Isaac-Lift-Cube-Franka-v0_memory_k16_action_seed0 \
+  --run-dir checkpoints/main_run/Isaac-Lift-Cube-Franka-v0_memory_k16_action_seed0 \
   --checkpoint best \
-  --out checkpoints/20260528_224247/Isaac-Lift-Cube-Franka-v0_memory_k16_action_seed0/test.mp4 \
+  --out checkpoints/main_run/Isaac-Lift-Cube-Franka-v0_memory_k16_action_seed0/test.mp4 \
   --device cuda:0 \
   --steps 80 \
   --frame-stride 2 \
@@ -218,9 +219,9 @@ For a full rollout:
 
 ```bash
 CUDA_VISIBLE_DEVICES=3 uv run python scripts/record_mp4.py \
-  --run-dir checkpoints/20260528_224247/Isaac-Lift-Cube-Franka-v0_memory_k16_action_seed0 \
+  --run-dir checkpoints/main_run/Isaac-Lift-Cube-Franka-v0_memory_k16_action_seed0 \
   --checkpoint best \
-  --out checkpoints/20260528_224247/Isaac-Lift-Cube-Franka-v0_memory_k16_action_seed0/rollout.mp4 \
+  --out checkpoints/main_run/Isaac-Lift-Cube-Franka-v0_memory_k16_action_seed0/rollout.mp4 \
   --device cuda:0 \
   --steps 250 \
   --frame-stride 2 \
